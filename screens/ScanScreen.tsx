@@ -2,17 +2,17 @@ import React, { useState } from 'react';
 import {
   View,
   Text,
-  TextInput,
   TouchableOpacity,
   StyleSheet,
-  Alert,
   ActivityIndicator,
   Image,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
+  Alert,
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
+import * as ImageManipulator from 'expo-image-manipulator';
 import { supabase } from '../lib/supabase';
 
 const SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL!;
@@ -21,11 +21,20 @@ const SUPABASE_ANON_KEY = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY!;
 type Stage = 'input' | 'preview' | 'loading' | 'error';
 
 export default function ScanScreen({ navigation }: any) {
-  const [restaurantName, setRestaurantName] = useState('');
   const [image, setImage] = useState<string | null>(null);
   const [imageBase64, setImageBase64] = useState<string | null>(null);
+  const [imageMimeType, setImageMimeType] = useState<string>('image/jpeg');
   const [stage, setStage] = useState<Stage>('input');
   const [errorMessage, setErrorMessage] = useState('');
+
+  async function convertToJpeg(uri: string): Promise<{ uri: string; base64: string }> {
+    const result = await ImageManipulator.manipulateAsync(
+      uri,
+      [{ resize: { width: 1600 } }],
+      { compress: 0.8, format: ImageManipulator.SaveFormat.JPEG, base64: true }
+    );
+    return { uri: result.uri, base64: result.base64! };
+  }
 
   async function openCamera() {
     const { status } = await ImagePicker.requestCameraPermissionsAsync();
@@ -37,10 +46,14 @@ export default function ScanScreen({ navigation }: any) {
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
       quality: 0.8,
       base64: true,
+      exif: false,
+      allowsEditing: false,
     });
-    if (!result.canceled && result.assets[0].base64) {
-      setImage(result.assets[0].uri);
-      setImageBase64(result.assets[0].base64);
+    if (!result.canceled) {
+      const { uri, base64 } = await convertToJpeg(result.assets[0].uri);
+      setImage(uri);
+      setImageBase64(base64);
+      setImageMimeType('image/jpeg');
       setStage('preview');
     }
   }
@@ -55,24 +68,19 @@ export default function ScanScreen({ navigation }: any) {
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
       quality: 0.8,
       base64: true,
+      exif: false,
     });
-    if (!result.canceled && result.assets[0].base64) {
-      setImage(result.assets[0].uri);
-      setImageBase64(result.assets[0].base64);
+    if (!result.canceled) {
+      const { uri, base64 } = await convertToJpeg(result.assets[0].uri);
+      setImage(uri);
+      setImageBase64(base64);
+      setImageMimeType('image/jpeg');
       setStage('preview');
     }
   }
 
   async function submitScan() {
-    if (!restaurantName.trim()) {
-      Alert.alert('Missing info', 'Please enter the restaurant name.');
-      return;
-    }
-    if (!imageBase64) {
-      Alert.alert('Missing image', 'Please take or choose a photo first.');
-      return;
-    }
-
+    if (!imageBase64) return;
     setStage('loading');
 
     try {
@@ -83,6 +91,7 @@ export default function ScanScreen({ navigation }: any) {
         return;
       }
 
+      // Analysis only — no save yet
       const res = await fetch(`${SUPABASE_URL}/functions/v1/scan-menu`, {
         method: 'POST',
         headers: {
@@ -91,8 +100,9 @@ export default function ScanScreen({ navigation }: any) {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          restaurant_name: restaurantName.trim(),
           image_base64: imageBase64,
+          image_mime_type: imageMimeType,
+          save: false,
         }),
       });
 
@@ -104,10 +114,8 @@ export default function ScanScreen({ navigation }: any) {
         return;
       }
 
-      // Reset for next scan
       setImage(null);
       setImageBase64(null);
-      setRestaurantName('');
       setStage('input');
 
       navigation.navigate('Results', { data });
@@ -124,7 +132,6 @@ export default function ScanScreen({ navigation }: any) {
     setErrorMessage('');
   }
 
-  // LOADING STATE
   if (stage === 'loading') {
     return (
       <View style={styles.centered}>
@@ -135,7 +142,6 @@ export default function ScanScreen({ navigation }: any) {
     );
   }
 
-  // ERROR STATE
   if (stage === 'error') {
     return (
       <View style={styles.centered}>
@@ -156,18 +162,8 @@ export default function ScanScreen({ navigation }: any) {
     >
       <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
         <Text style={styles.title}>Scan a Menu</Text>
+        <Text style={styles.subtitle}>Take a photo of any beer menu</Text>
 
-        {/* Restaurant name input */}
-        <Text style={styles.label}>Bar or restaurant name</Text>
-        <TextInput
-          style={styles.input}
-          placeholder="e.g. The Tap Room"
-          placeholderTextColor="#555"
-          value={restaurantName}
-          onChangeText={setRestaurantName}
-        />
-
-        {/* Image preview or pick buttons */}
         {image ? (
           <View style={styles.previewContainer}>
             <Image source={{ uri: image }} style={styles.preview} />
@@ -177,7 +173,6 @@ export default function ScanScreen({ navigation }: any) {
           </View>
         ) : (
           <View style={styles.imageButtons}>
-            <Text style={styles.label}>Menu photo</Text>
             <TouchableOpacity style={styles.button} onPress={openCamera}>
               <Text style={styles.buttonText}>📷  Take Photo</Text>
             </TouchableOpacity>
@@ -187,12 +182,8 @@ export default function ScanScreen({ navigation }: any) {
           </View>
         )}
 
-        {/* Submit */}
         {stage === 'preview' && (
-          <TouchableOpacity
-            style={[styles.button, styles.submitButton]}
-            onPress={submitScan}
-          >
+          <TouchableOpacity style={[styles.button, styles.submitButton]} onPress={submitScan}>
             <Text style={styles.buttonText}>Analyze Menu →</Text>
           </TouchableOpacity>
         )}
@@ -224,22 +215,12 @@ const styles = StyleSheet.create({
     fontSize: 28,
     fontWeight: 'bold',
     color: '#fff',
-    marginBottom: 32,
-  },
-  label: {
-    color: '#888',
-    fontSize: 13,
     marginBottom: 8,
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
   },
-  input: {
-    backgroundColor: '#1e1e1e',
-    color: '#fff',
-    borderRadius: 8,
-    padding: 14,
-    fontSize: 16,
-    marginBottom: 24,
+  subtitle: {
+    fontSize: 14,
+    color: '#888',
+    marginBottom: 32,
   },
   imageButtons: {
     gap: 12,

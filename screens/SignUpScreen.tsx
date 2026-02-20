@@ -34,7 +34,7 @@ export default function SignUpScreen({ navigation }: any) {
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
       <Text style={styles.title}>mvb</Text>
-      <Text style={styles.subtitle}>create an account</Text>
+      <Text style={styles.subtitle}>Most Valuable Beer</Text>
 
       <TextInput
         style={styles.input}

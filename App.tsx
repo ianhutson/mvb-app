@@ -5,6 +5,7 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Session } from '@supabase/supabase-js';
 import { supabase } from './lib/supabase';
+
 import LoginScreen from './screens/LoginScreen';
 import SignUpScreen from './screens/SignUpScreen';
 import ScanScreen from './screens/ScanScreen';
@@ -19,7 +20,7 @@ function HomeScreen({ navigation }: any) {
   return (
     <View style={styles.container}>
       <Text style={styles.title}>mvb</Text>
-      <Text style={styles.subtitle}>find the best value beer</Text>
+      <Text style={styles.subtitle}>Most Valuable Beer</Text>
       <TouchableOpacity style={styles.button} onPress={() => navigation.navigate('Scan')}>
         <Text style={styles.buttonText}>📷  Scan a Menu</Text>
       </TouchableOpacity>

@@ -29,7 +29,7 @@ export default function LoginScreen({ navigation }: any) {
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
       <Text style={styles.title}>mvb</Text>
-      <Text style={styles.subtitle}>find the best value beer</Text>
+      <Text style={styles.subtitle}>Most Valuable Beer</Text>
 
       <TextInput
         style={styles.input}
