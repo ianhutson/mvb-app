@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import MvbIcon from './components/MvbIcon';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
@@ -11,6 +12,8 @@ import SignUpScreen from './screens/SignUpScreen';
 import ScanScreen from './screens/ScanScreen';
 import ResultsScreen from './screens/ResultsScreen';
 import HistoryScreen from './screens/HistoryScreen';
+import ScanDetailScreen from './screens/ScanDetailScreen';
+import ProfileScreen from './screens/ProfileScreen';
 
 const AuthStack = createNativeStackNavigator();
 const AppStack = createNativeStackNavigator();
@@ -19,13 +22,10 @@ const Tab = createBottomTabNavigator();
 function HomeScreen({ navigation }: any) {
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>mvb</Text>
+      <MvbIcon size={140} />
       <Text style={styles.subtitle}>Most Valuable Beer</Text>
       <TouchableOpacity style={styles.button} onPress={() => navigation.navigate('Scan')}>
         <Text style={styles.buttonText}>📷  Scan a Menu</Text>
-      </TouchableOpacity>
-      <TouchableOpacity style={styles.signOut} onPress={() => supabase.auth.signOut()}>
-        <Text style={styles.signOutText}>Sign Out</Text>
       </TouchableOpacity>
     </View>
   );
@@ -43,6 +43,7 @@ function TabNavigator() {
     >
       <Tab.Screen name="Home" component={HomeScreen} options={{ tabBarLabel: 'Home', tabBarIcon: () => <Text>🏠</Text> }} />
       <Tab.Screen name="History" component={HistoryScreen} options={{ tabBarLabel: 'History', tabBarIcon: () => <Text>🕓</Text> }} />
+      <Tab.Screen name="Profile" component={ProfileScreen} options={{ tabBarLabel: 'Profile', tabBarIcon: () => <Text>👤</Text> }} />
     </Tab.Navigator>
   );
 }
@@ -62,6 +63,7 @@ function AppNavigator() {
       <AppStack.Screen name="Tabs" component={TabNavigator} />
       <AppStack.Screen name="Scan" component={ScanScreen} />
       <AppStack.Screen name="Results" component={ResultsScreen} />
+      <AppStack.Screen name="ScanDetail" component={ScanDetailScreen} />
     </AppStack.Navigator>
   );
 }
@@ -76,7 +78,7 @@ export default function App() {
       setLoading(false);
     });
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event: string, session: Session | null) => {
       setSession(session);
     });
 
@@ -100,11 +102,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: 24,
   },
-  title: {
-    fontSize: 48,
-    fontWeight: 'bold',
-    color: '#f5c518',
-    marginBottom: 4,
+  logo: {
+    width: 140,
+    height: 140,
+    marginBottom: 8,
   },
   subtitle: {
     fontSize: 14,
@@ -122,12 +123,5 @@ const styles = StyleSheet.create({
     color: '#0f0f0f',
     fontWeight: 'bold',
     fontSize: 16,
-  },
-  signOut: {
-    marginTop: 24,
-  },
-  signOutText: {
-    color: '#555',
-    fontSize: 14,
   },
 });

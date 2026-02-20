@@ -7,6 +7,7 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   RefreshControl,
+  Alert,
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { supabase } from '../lib/supabase';
@@ -41,8 +42,23 @@ export default function HistoryScreen({ navigation }: any) {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) return;
 
-      // Fetch restaurants with their scans and best item per scan
-      const { data, error } = await supabase
+      // Delete restaurants with no scans
+      const { data: emptyRestaurants } = await supabase
+        .from('restaurants')
+        .select('id, scans(id)')
+        .eq('user_id', session.user.id);
+
+      if (emptyRestaurants) {
+        const emptyIds = emptyRestaurants
+          .filter((r: any) => !r.scans || r.scans.length === 0)
+          .map((r: any) => r.id);
+        if (emptyIds.length > 0) {
+          await supabase.from('restaurants').delete().in('id', emptyIds);
+        }
+      }
+
+      // Fetch named restaurants with their scans
+      const { data: namedData, error: namedErr } = await supabase
         .from('restaurants')
         .select(`
           id,
@@ -50,37 +66,53 @@ export default function HistoryScreen({ navigation }: any) {
           scans (
             id,
             captured_at,
-            scan_items (
-              id,
-              name,
-              score
-            )
+            scan_items ( id, name, score )
           )
         `)
         .eq('user_id', session.user.id)
         .order('created_at', { ascending: false });
 
-      if (error) throw error;
+      if (namedErr) throw namedErr;
 
-      // Shape the data
-      const shaped: Restaurant[] = (data ?? []).map((r: any) => ({
+      // Fetch orphan scans (no restaurant)
+      const { data: orphanScans, error: orphanErr } = await supabase
+        .from('scans')
+        .select(`id, captured_at, scan_items ( id, name, score )`)
+        .eq('user_id', session.user.id)
+        .is('restaurant_id', null)
+        .order('captured_at', { ascending: false });
+
+      if (orphanErr) throw orphanErr;
+
+      const shapeScan = (s: any) => {
+        const items: ScanItem[] = s.scan_items ?? [];
+        const sorted = [...items].sort((a, b) => (b.score ?? -1) - (a.score ?? -1));
+        return {
+          id: s.id,
+          captured_at: s.captured_at,
+          best: sorted[0] ?? null,
+          item_count: items.length,
+        };
+      };
+
+      const shaped: Restaurant[] = (namedData ?? []).map((r: any) => ({
         id: r.id,
         name: r.name,
         scans: (r.scans ?? [])
           .sort((a: any, b: any) =>
             new Date(b.captured_at).getTime() - new Date(a.captured_at).getTime()
           )
-          .map((s: any) => {
-            const items: ScanItem[] = s.scan_items ?? [];
-            const sorted = [...items].sort((a, b) => (b.score ?? -1) - (a.score ?? -1));
-            return {
-              id: s.id,
-              captured_at: s.captured_at,
-              best: sorted[0] ?? null,
-              item_count: items.length,
-            };
-          }),
+          .map(shapeScan),
       }));
+
+      // Add orphan scans as a virtual "Unnamed" group
+      if (orphanScans && orphanScans.length > 0) {
+        shaped.push({
+          id: 'orphan',
+          name: '',
+          scans: orphanScans.map(shapeScan),
+        });
+      }
 
       setRestaurants(shaped);
       setError('');
@@ -110,38 +142,76 @@ export default function HistoryScreen({ navigation }: any) {
     return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
   }
 
+  async function deleteScan(scanId: string) {
+    Alert.alert(
+      'Delete scan?',
+      'This will permanently delete this scan and all its items.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await supabase.from('scan_items').delete().eq('scan_id', scanId);
+              await supabase.from('scans').delete().eq('id', scanId);
+              // Remove locally and clean up empty restaurants
+              setRestaurants(prev =>
+                prev
+                  .map(r => ({ ...r, scans: r.scans.filter(s => s.id !== scanId) }))
+                  .filter(r => r.scans.length > 0)
+              );
+            } catch (e: any) {
+              Alert.alert('Error', e.message);
+            }
+          },
+        },
+      ]
+    );
+  }
+
   function renderScan(scan: Scan, restaurantName: string) {
     return (
-      <TouchableOpacity
-        key={scan.id}
-        style={styles.scanCard}
-        onPress={() => navigation.navigate('ScanDetail', { scanId: scan.id, restaurantName })}
-      >
-        <View style={styles.scanHeader}>
-          <Text style={styles.scanDate}>{formatDate(scan.captured_at)}</Text>
-          <Text style={styles.scanCount}>{scan.item_count} beers</Text>
-        </View>
-        {scan.best && (
-          <View style={styles.bestRow}>
-            <Text style={styles.bestLabel}>🏆 Best</Text>
-            <Text style={styles.bestName} numberOfLines={1}>{scan.best.name}</Text>
-            {scan.best.score && (
-              <Text style={styles.bestScore}>{scan.best.score.toFixed(2)}</Text>
-            )}
+      <View key={scan.id} style={styles.scanCard}>
+        <TouchableOpacity
+          style={styles.scanCardContent}
+          onPress={() => navigation.navigate('ScanDetail', { scanId: scan.id, restaurantName })}
+        >
+          <View style={styles.scanHeader}>
+            <Text style={styles.scanDate}>{formatDate(scan.captured_at)}</Text>
+            <Text style={styles.scanCount}>{scan.item_count} beers</Text>
           </View>
-        )}
-      </TouchableOpacity>
+          {scan.best && (
+            <View style={styles.bestRow}>
+              <Text style={styles.bestLabel}>🏆 Best</Text>
+              <Text style={styles.bestName} numberOfLines={1}>{scan.best.name}</Text>
+              {scan.best.score && (
+                <Text style={styles.bestScore}>{scan.best.score.toFixed(2)}</Text>
+              )}
+            </View>
+          )}
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={styles.deleteButton}
+          onPress={() => deleteScan(scan.id)}
+        >
+          <Text style={styles.deleteButtonText}>🗑️</Text>
+        </TouchableOpacity>
+      </View>
     );
   }
 
   function renderRestaurant({ item }: { item: Restaurant }) {
+    const isOrphan = item.id === 'orphan';
     return (
       <View style={styles.restaurantSection}>
-        <Text style={styles.restaurantName}>{item.name}</Text>
+        <Text style={[styles.restaurantName, isOrphan && styles.unnamedLabel]}>
+          {isOrphan ? 'Unnamed' : item.name}
+        </Text>
         <Text style={styles.scanCountLabel}>
           {item.scans.length} {item.scans.length === 1 ? 'scan' : 'scans'}
         </Text>
-        {item.scans.map((scan) => renderScan(scan, item.name))}
+        {item.scans.map((scan) => renderScan(scan, isOrphan ? '' : item.name))}
       </View>
     );
   }
@@ -233,6 +303,10 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     color: '#fff',
   },
+  unnamedLabel: {
+    color: '#555',
+    fontStyle: 'italic',
+  },
   scanCountLabel: {
     fontSize: 13,
     color: '#555',
@@ -241,6 +315,12 @@ const styles = StyleSheet.create({
   scanCard: {
     backgroundColor: '#1e1e1e',
     borderRadius: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    overflow: 'hidden',
+  },
+  scanCardContent: {
+    flex: 1,
     padding: 14,
     gap: 8,
   },
@@ -318,5 +398,16 @@ const styles = StyleSheet.create({
     color: '#0f0f0f',
     fontWeight: 'bold',
     fontSize: 16,
+  },
+  deleteButton: {
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderLeftWidth: 1,
+    borderLeftColor: '#2a2a2a',
+  },
+  deleteButtonText: {
+    fontSize: 18,
   },
 });

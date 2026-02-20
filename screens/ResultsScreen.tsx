@@ -11,9 +11,7 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { supabase } from '../lib/supabase';
-
-const SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL!;
-const SUPABASE_ANON_KEY = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY!;
+import { useVolumeUnit, formatVolume, VolumeUnit } from '../lib/useVolumeUnit';
 
 type BeerItem = {
   name: string;
@@ -26,12 +24,23 @@ type BeerItem = {
 export default function ResultsScreen({ route, navigation }: any) {
   const { data } = route.params;
   const items: BeerItem[] = data.items ?? [];
-  const best: BeerItem | null = data.best ?? null;
+  const scanId: string = data.scan?.id ?? null;
 
   const [saveModalVisible, setSaveModalVisible] = useState(false);
   const [restaurantName, setRestaurantName] = useState('');
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const userDefault = useVolumeUnit();
+  const [scanUnit, setScanUnit] = useState<VolumeUnit | null>(null);
+  const volumeUnit: VolumeUnit = scanUnit ?? userDefault;
+
+  async function toggleScanUnit() {
+    const next: VolumeUnit = volumeUnit === 'floz' ? 'ml' : 'floz';
+    setScanUnit(next);
+    if (scanId) {
+      await supabase.from('scans').update({ volume_unit: next }).eq('id', scanId);
+    }
+  }
 
   async function handleSave() {
     if (!restaurantName.trim()) {
@@ -47,30 +56,27 @@ export default function ResultsScreen({ route, navigation }: any) {
         return;
       }
 
-      const res = await fetch(`${SUPABASE_URL}/functions/v1/scan-menu`, {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${session.access_token}`,
-          apikey: SUPABASE_ANON_KEY,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          restaurant_name: restaurantName.trim(),
-          items,
-          save: true,
-        }),
-      });
+      // Upsert restaurant and link scan
+      const { data: restaurant, error: restErr } = await supabase
+        .from('restaurants')
+        .upsert(
+          { user_id: session.user.id, name: restaurantName.trim() },
+          { onConflict: 'user_id,name' }
+        )
+        .select()
+        .single();
 
-      const result = await res.json();
+      if (restErr) throw restErr;
 
-      if (!res.ok) {
-        Alert.alert('Save failed', result.error || 'Something went wrong.');
-        return;
+      if (scanId) {
+        await supabase
+          .from('scans')
+          .update({ restaurant_id: restaurant.id })
+          .eq('id', scanId);
       }
 
       setSaveModalVisible(false);
       setSaved(true);
-      Alert.alert('Saved!', `Results saved for ${restaurantName.trim()}.`);
     } catch (e: any) {
       Alert.alert('Error', e.message);
     } finally {
@@ -85,7 +91,7 @@ export default function ResultsScreen({ route, navigation }: any) {
         {isBest && <Text style={styles.bestBadge}>🏆 Best Value</Text>}
         <Text style={[styles.beerName, isBest && styles.bestBeerName]}>{item.name}</Text>
         <View style={styles.details}>
-          {item.volume_ml && <Text style={styles.detail}>{item.volume_ml}ml</Text>}
+          {item.volume_ml && <Text style={styles.detail}>{formatVolume(item.volume_ml, volumeUnit)}</Text>}
           {item.abv && <Text style={styles.detail}>{item.abv}% ABV</Text>}
           {item.price && <Text style={styles.detail}>${item.price}</Text>}
         </View>
@@ -100,8 +106,24 @@ export default function ResultsScreen({ route, navigation }: any) {
 
   return (
     <View style={styles.container}>
+      <View style={styles.topNav}>
+        <TouchableOpacity onPress={() => navigation.navigate('Tabs')}>
+          <Text style={styles.topNavButton}>← Home</Text>
+        </TouchableOpacity>
+        <TouchableOpacity onPress={() => navigation.navigate('Scan')}>
+          <Text style={styles.topNavButtonAccent}>Scan Again</Text>
+        </TouchableOpacity>
+      </View>
+
       <Text style={styles.title}>Results</Text>
-      <Text style={styles.subtitle}>{items.length} beers ranked by value</Text>
+      <View style={styles.subtitleRow}>
+        <Text style={styles.subtitle}>{items.length} beers ranked by value</Text>
+        <TouchableOpacity style={styles.unitToggle} onPress={toggleScanUnit}>
+          <Text style={[styles.unitOption, volumeUnit === 'floz' && styles.unitOptionActive]}>fl oz</Text>
+          <Text style={styles.unitDivider}>/</Text>
+          <Text style={[styles.unitOption, volumeUnit === 'ml' && styles.unitOptionActive]}>mL</Text>
+        </TouchableOpacity>
+      </View>
 
       <FlatList
         data={items}
@@ -116,19 +138,13 @@ export default function ResultsScreen({ route, navigation }: any) {
                 style={styles.saveButton}
                 onPress={() => setSaveModalVisible(true)}
               >
-                <Text style={styles.saveButtonText}>💾  Save Results</Text>
+                <Text style={styles.saveButtonText}>🏷️  Name this Scan</Text>
               </TouchableOpacity>
             ) : (
               <View style={styles.savedBadge}>
-                <Text style={styles.savedBadgeText}>✓ Saved</Text>
+                <Text style={styles.savedBadgeText}>✓ Named</Text>
               </View>
             )}
-            <TouchableOpacity
-              style={styles.scanAgainButton}
-              onPress={() => navigation.navigate('Scan')}
-            >
-              <Text style={styles.scanAgainText}>Scan Another Menu</Text>
-            </TouchableOpacity>
           </View>
         }
       />
@@ -142,7 +158,7 @@ export default function ResultsScreen({ route, navigation }: any) {
       >
         <View style={styles.modalOverlay}>
           <View style={styles.modalBox}>
-            <Text style={styles.modalTitle}>Save Results</Text>
+            <Text style={styles.modalTitle}>Name this Scan</Text>
             <Text style={styles.modalSubtitle}>What's this bar or restaurant called?</Text>
             <TextInput
               style={styles.modalInput}
@@ -195,7 +211,34 @@ const styles = StyleSheet.create({
   subtitle: {
     fontSize: 14,
     color: '#888',
+    flex: 1,
+  },
+  subtitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
     marginBottom: 24,
+  },
+  unitToggle: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    backgroundColor: '#1e1e1e',
+    borderRadius: 6,
+  },
+  unitOption: {
+    color: '#555',
+    fontSize: 12,
+    fontWeight: 'bold',
+  },
+  unitOptionActive: {
+    color: '#f5c518',
+  },
+  unitDivider: {
+    color: '#333',
+    fontSize: 12,
   },
   list: {
     gap: 12,
@@ -280,6 +323,21 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontWeight: 'bold',
     fontSize: 16,
+  },
+  topNav: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  topNavButton: {
+    color: '#555',
+    fontSize: 14,
+  },
+  topNavButtonAccent: {
+    color: '#f5c518',
+    fontSize: 14,
+    fontWeight: 'bold',
   },
   // Modal
   modalOverlay: {

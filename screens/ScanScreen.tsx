@@ -102,7 +102,6 @@ export default function ScanScreen({ navigation }: any) {
         body: JSON.stringify({
           image_base64: imageBase64,
           image_mime_type: imageMimeType,
-          save: false,
         }),
       });
 
@@ -188,8 +187,8 @@ export default function ScanScreen({ navigation }: any) {
           </TouchableOpacity>
         )}
 
-        <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
-          <Text style={styles.backButtonText}>← Back</Text>
+        <TouchableOpacity style={styles.backButton} onPress={() => navigation.navigate('Tabs')}>
+          <Text style={styles.backButtonText}>← Home</Text>
         </TouchableOpacity>
       </ScrollView>
     </KeyboardAvoidingView>

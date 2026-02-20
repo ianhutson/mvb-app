@@ -10,6 +10,7 @@ import {
   Platform,
 } from 'react-native';
 import { supabase } from '../lib/supabase';
+import MvbIcon from '../components/MvbIcon';
 
 export default function LoginScreen({ navigation }: any) {
   const [email, setEmail] = useState('');
@@ -28,7 +29,9 @@ export default function LoginScreen({ navigation }: any) {
       style={styles.container}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
-      <Text style={styles.title}>mvb</Text>
+      <View style={styles.logoContainer}>
+        <MvbIcon size={120} />
+      </View>
       <Text style={styles.subtitle}>Most Valuable Beer</Text>
 
       <TextInput
@@ -67,12 +70,15 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     padding: 24,
   },
-  title: {
-    fontSize: 48,
-    fontWeight: 'bold',
-    color: '#f5c518',
-    textAlign: 'center',
-    marginBottom: 4,
+  logoContainer: {
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  logo: {
+    width: 120,
+    height: 120,
+    alignSelf: 'center',
+    marginBottom: 8,
   },
   subtitle: {
     fontSize: 14,
