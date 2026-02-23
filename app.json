@@ -3,6 +3,7 @@
     "name": "MVB",
     "slug": "mvb-app",
     "version": "1.0.0",
+    "scheme": "com.ianhutson.mvb",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "dark",
@@ -18,7 +19,7 @@
     },
     "android": {
       "package": "com.ianhutson.mvb",
-      "versionCode": 1,
+      "versionCode": 3,
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#0f0f0f"
