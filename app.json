@@ -12,16 +12,13 @@
       "resizeMode": "contain",
       "backgroundColor": "#0f0f0f"
     },
-    "plugins": [
-      "react-native-svg"
-    ],
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "com.ianhutson.mvb"
     },
     "android": {
       "package": "com.ianhutson.mvb",
-      "versionCode": 5,
+      "versionCode": 1,
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#0f0f0f"
