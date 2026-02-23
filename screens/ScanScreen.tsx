@@ -136,7 +136,7 @@ export default function ScanScreen({ navigation }: any) {
       <View style={styles.centered}>
         <ActivityIndicator size="large" color="#f5c518" />
         <Text style={styles.loadingTitle}>Analyzing menu...</Text>
-        <Text style={styles.loadingSubtitle}>Claude is reading your menu</Text>
+        <Text style={styles.loadingSubtitle}>Reading your menu</Text>
       </View>
     );
   }

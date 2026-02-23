@@ -8,6 +8,8 @@ import {
   ActivityIndicator,
   RefreshControl,
   Alert,
+  Modal,
+  TextInput,
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { supabase } from '../lib/supabase';
@@ -36,6 +38,9 @@ export default function HistoryScreen({ navigation }: any) {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState('');
+  const [renameModalVisible, setRenameModalVisible] = useState(false);
+  const [renamingScan, setRenamingScan] = useState<{ scanId: string; currentName: string } | null>(null);
+  const [newName, setNewName] = useState('');
 
   async function fetchHistory() {
     try {
@@ -170,6 +175,41 @@ export default function HistoryScreen({ navigation }: any) {
     );
   }
 
+  function openRename(scanId: string, currentName: string) {
+    setRenamingScan({ scanId, currentName });
+    setNewName(currentName);
+    setRenameModalVisible(true);
+  }
+
+  async function handleRename() {
+    if (!newName.trim() || !renamingScan) return;
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) return;
+
+      const { data: restaurant, error: restErr } = await supabase
+        .from('restaurants')
+        .upsert(
+          { user_id: session.user.id, name: newName.trim() },
+          { onConflict: 'user_id,name' }
+        )
+        .select()
+        .single();
+
+      if (restErr) throw restErr;
+
+      await supabase
+        .from('scans')
+        .update({ restaurant_id: restaurant.id })
+        .eq('id', renamingScan.scanId);
+
+      setRenameModalVisible(false);
+      fetchHistory();
+    } catch (e: any) {
+      Alert.alert('Error', e.message);
+    }
+  }
+
   function renderScan(scan: Scan, restaurantName: string) {
     return (
       <View key={scan.id} style={styles.scanCard}>
@@ -205,12 +245,24 @@ export default function HistoryScreen({ navigation }: any) {
     const isOrphan = item.id === 'orphan';
     return (
       <View style={styles.restaurantSection}>
-        <Text style={[styles.restaurantName, isOrphan && styles.unnamedLabel]}>
-          {isOrphan ? 'Unnamed' : item.name}
-        </Text>
-        <Text style={styles.scanCountLabel}>
-          {item.scans.length} {item.scans.length === 1 ? 'scan' : 'scans'}
-        </Text>
+        <View style={styles.restaurantHeader}>
+          <View>
+            <Text style={[styles.restaurantName, isOrphan && styles.unnamedLabel]}>
+              {isOrphan ? 'Unnamed' : item.name}
+            </Text>
+            <Text style={styles.scanCountLabel}>
+              {item.scans.length} {item.scans.length === 1 ? 'scan' : 'scans'}
+            </Text>
+          </View>
+          {!isOrphan && (
+            <TouchableOpacity
+              style={styles.renameRestaurantButton}
+              onPress={() => openRename(item.scans[0]?.id, item.name)}
+            >
+              <Text style={styles.renameRestaurantText}>✏️</Text>
+            </TouchableOpacity>
+          )}
+        </View>
         {item.scans.map((scan) => renderScan(scan, isOrphan ? '' : item.name))}
       </View>
     );
@@ -266,6 +318,41 @@ export default function HistoryScreen({ navigation }: any) {
           />
         }
       />
+
+      <Modal
+        visible={renameModalVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setRenameModalVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalBox}>
+            <Text style={styles.modalTitle}>Rename</Text>
+            <TextInput
+              style={styles.modalInput}
+              placeholder="Bar or restaurant name"
+              placeholderTextColor="#555"
+              value={newName}
+              onChangeText={setNewName}
+              autoFocus
+            />
+            <View style={styles.modalButtons}>
+              <TouchableOpacity
+                style={styles.modalCancel}
+                onPress={() => setRenameModalVisible(false)}
+              >
+                <Text style={styles.modalCancelText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.modalSave}
+                onPress={handleRename}
+              >
+                <Text style={styles.modalSaveText}>Save</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -409,5 +496,69 @@ const styles = StyleSheet.create({
   },
   deleteButtonText: {
     fontSize: 18,
+  },
+  restaurantHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: 4,
+  },
+  renameRestaurantButton: {
+    padding: 4,
+  },
+  renameRestaurantText: {
+    fontSize: 16,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.7)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 24,
+  },
+  modalBox: {
+    backgroundColor: '#1e1e1e',
+    borderRadius: 12,
+    padding: 24,
+    width: '100%',
+    gap: 16,
+  },
+  modalTitle: {
+    color: '#fff',
+    fontSize: 18,
+    fontWeight: 'bold',
+  },
+  modalInput: {
+    backgroundColor: '#2a2a2a',
+    color: '#fff',
+    borderRadius: 8,
+    padding: 12,
+    fontSize: 16,
+  },
+  modalButtons: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  modalCancel: {
+    flex: 1,
+    backgroundColor: '#2a2a2a',
+    borderRadius: 8,
+    padding: 14,
+    alignItems: 'center',
+  },
+  modalCancelText: {
+    color: '#888',
+    fontWeight: 'bold',
+  },
+  modalSave: {
+    flex: 1,
+    backgroundColor: '#f5c518',
+    borderRadius: 8,
+    padding: 14,
+    alignItems: 'center',
+  },
+  modalSaveText: {
+    color: '#0f0f0f',
+    fontWeight: 'bold',
   },
 });
