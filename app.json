@@ -17,7 +17,8 @@
       "supportsTablet": false,
       "bundleIdentifier": "com.ianhutson.mvb",
       "infoPlist": {
-        "ITSAppUsesNonExemptEncryption": false
+        "NSCameraUsageDescription": "MVB uses your camera to photograph beer menus so the app can scan and rank drinks by value.",
+        "NSPhotoLibraryUsageDescription": "MVB accesses your photo library so you can select an existing photo of a beer menu to scan and rank drinks by value."
       }
     },
     "android": {
