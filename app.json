@@ -15,6 +15,7 @@
     },
     "ios": {
       "supportsTablet": false,
+      "buildNumber": "2",
       "bundleIdentifier": "com.ianhutson.mvb",
       "infoPlist": {
         "NSCameraUsageDescription": "MVB uses your camera to take a photo of a beer or drink menu at a bar or restaurant. The photo is sent to an AI service that reads the menu items, prices, and alcohol content to calculate and rank each drink by alcohol-per-dollar value. Photos are not stored on our servers.",
