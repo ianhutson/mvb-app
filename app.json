@@ -17,7 +17,7 @@
       [
         "expo-image-picker",
         {
-          "cameraPermission": "MVB uses your camera to photograph beer and drink menus. Point your camera at a bar menu to capture it. The photo is analyzed by our system to identify drinks and rank them by alcohol-per-dollar value.",
+          "cameraPermission": "MVB uses your camera to photograph beer and drink menus. The photo is analyzed by our system to identify drinks and rank them by alcohol-per-dollar value.",
           "photosPermission": "MVB accesses your photo library so you can select a photo of a beer or drink menu. The selected photo is analyzed by our system to identify drinks and rank them by alcohol-per-dollar value."
         }
       ]
@@ -26,8 +26,8 @@
       "supportsTablet": false,
       "bundleIdentifier": "com.ianhutson.mvb",
       "infoPlist": {
-        "NSCameraUsageDescription": "MVB uses your camera to photograph beer and drink menus. Point your camera at a bar menu to capture it. The photo is analyzed by AI to identify drinks and rank them by alcohol-per-dollar value.",
-        "NSPhotoLibraryUsageDescription": "MVB accesses your photo library so you can select a photo of a beer or drink menu. The selected photo is analyzed by AI to identify drinks and rank them by alcohol-per-dollar value.",
+        "NSCameraUsageDescription": "MVB uses your camera to photograph beer and drink menus. The photo is analyzed by our system to identify drinks and rank them by alcohol-per-dollar value.",
+        "NSPhotoLibraryUsageDescription": "MVB accesses your photo library so you can select a photo of a beer or drink menu. The selected photo is analyzed by our system to identify drinks and rank them by alcohol-per-dollar value.",
         "ITSAppUsesNonExemptEncryption": false
       }
     },
