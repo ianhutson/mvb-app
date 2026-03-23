@@ -11,7 +11,7 @@ import {
   ScrollView,
 } from 'react-native';
 import { supabase } from '../lib/supabase';
-import MvbIcon from '../components/MvbIcon';
+import { Image } from 'react-native';
 
 export default function SignUpScreen({ navigation }: any) {
   const [email, setEmail] = useState('');
@@ -40,7 +40,7 @@ export default function SignUpScreen({ navigation }: any) {
         keyboardShouldPersistTaps="handled"
       >
         <View style={styles.logoContainer}>
-          <MvbIcon size={120} />
+        <Image source={require('../assets/icon.png')} style={{ width: 120, height: 120, borderRadius: 24 }} />
         </View>
         <Text style={styles.subtitle}>Most Valuable Beer</Text>
         <TextInput
