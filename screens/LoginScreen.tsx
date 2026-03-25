@@ -35,7 +35,7 @@ export default function LoginScreen({ navigation }: any) {
         keyboardShouldPersistTaps="handled"
       >
         <View style={styles.logoContainer}>
-         <Image source={require('../assets/icon.png')} style={{ width: 120, height: 120, borderRadius: 24 }} />
+         <Image source={require('../assets/icon-new.png')} style={{ width: 120, height: 120, borderRadius: 24 }} />
         </View>
         <Text style={styles.subtitle}>Most Valuable Beer</Text>
         <TextInput
