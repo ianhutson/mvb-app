@@ -2,7 +2,7 @@
   "expo": {
     "name": "MVB",
     "slug": "mvb-app",
-    "version": "1.1.1",
+    "version": "1.1.2",
     "scheme": "com.ianhutson.mvb",
     "orientation": "portrait",
     "icon": "./assets/icon-new.png",

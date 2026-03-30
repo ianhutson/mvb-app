@@ -1,6 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Platform } from 'react-native';
-import MvbIcon from './components/MvbIcon';
+import { View, Text, TouchableOpacity, StyleSheet, Platform, Image } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
@@ -26,7 +25,7 @@ const RC_ANDROID_KEY = process.env.EXPO_PUBLIC_RC_ANDROID_KEY!;
 function HomeScreen({ navigation }: any) {
   return (
     <View style={styles.container}>
-      <MvbIcon size={140} />
+      <Image source={require('./assets/icon-new.png')} style={{ width: 140, height: 140, borderRadius: 28 }} />
       <Text style={styles.subtitle}>Most Valuable Beer</Text>
       <TouchableOpacity style={styles.button} onPress={() => navigation.navigate('Scan')}>
         <Text style={styles.buttonText}>📷  Scan a Menu</Text>
