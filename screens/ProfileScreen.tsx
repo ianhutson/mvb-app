@@ -7,6 +7,7 @@ import {
   Alert,
   ActivityIndicator,
 } from 'react-native';
+import { useIsFocused } from '@react-navigation/native';
 import { supabase } from '../lib/supabase';
 import Purchases from 'react-native-purchases';
 import { useProStatus } from '../lib/useProStatus';
@@ -16,7 +17,13 @@ export default function ProfileScreen({ navigation }: any) {
   const [volumeUnit, setVolumeUnit] = useState<'ml' | 'floz'>('floz');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const { isPro } = useProStatus();
+  const { isPro, isMonthly, refresh } = useProStatus();
+  const isFocused = useIsFocused();
+
+  // Re-check pro status every time this screen comes into focus
+  useEffect(() => {
+    if (isFocused) refresh();
+  }, [isFocused]);
 
   useEffect(() => {
     async function load() {
@@ -122,6 +129,15 @@ export default function ProfileScreen({ navigation }: any) {
         </View>
       )}
 
+      {isPro && isMonthly && (
+        <View style={styles.section}>
+          <TouchableOpacity style={styles.annualUpsellButton} onPress={() => navigation.navigate('Paywall')}>
+            <Text style={styles.annualUpsellTitle}>💰  Save 58% with Annual</Text>
+            <Text style={styles.annualUpsellSub}>Switch to $9.99/year and keep more money for beer</Text>
+          </TouchableOpacity>
+        </View>
+      )}
+
       <View style={styles.section}>
         <Text style={styles.sectionLabel}>Display Preference</Text>
         <Text style={styles.sectionSubtitle}>Choose how volume is shown on scans</Text>
@@ -174,6 +190,9 @@ const styles = StyleSheet.create({
   proText: { color: '#f5c518', fontWeight: 'bold' },
   upgradeButton: { backgroundColor: '#f5c518', borderRadius: 8, padding: 16, alignItems: 'center' },
   upgradeText: { color: '#0f0f0f', fontWeight: 'bold', fontSize: 16 },
+  annualUpsellButton: { backgroundColor: '#2a2200', borderRadius: 8, padding: 16, borderWidth: 1, borderColor: '#f5c518' },
+  annualUpsellTitle: { color: '#f5c518', fontWeight: 'bold', fontSize: 15, marginBottom: 4 },
+  annualUpsellSub: { color: '#aaa', fontSize: 13 },
   unitSelector: { flexDirection: 'row', backgroundColor: '#1e1e1e', borderRadius: 8, padding: 4, gap: 4 },
   unitOption: { flex: 1, padding: 12, borderRadius: 6, alignItems: 'center' },
   unitOptionActive: { backgroundColor: '#f5c518' },
