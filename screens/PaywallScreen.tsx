@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from "react";
 import {
   View,
   Text,
@@ -6,146 +6,153 @@ import {
   StyleSheet,
   ActivityIndicator,
   Alert,
-} from 'react-native';
-import Purchases, { PurchasesPackage } from 'react-native-purchases';
+  Linking,
+} from "react-native";
+import { supabase } from "../lib/supabase";
+
+const SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL!;
+const SUPABASE_ANON_KEY = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY!;
+
+const PACKS = [
+  { id: "single", label: "1 Scan", price: "$0.99", description: "Try it out" },
+  {
+    id: "fivepack",
+    label: "5 Scans",
+    price: "$2.99",
+    description: "Best value — save 40%",
+  },
+];
 
 export default function PaywallScreen({ navigation }: any) {
-  const [packages, setPackages] = useState<PurchasesPackage[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [purchasing, setPurchasing] = useState(false);
-  const [selected, setSelected] = useState<string | null>(null);
-
-  useEffect(() => {
-    async function loadOfferings() {
-      try {
-        const offerings = await Purchases.getOfferings();
-        if (offerings.current?.availablePackages) {
-          setPackages(offerings.current.availablePackages);
-          setSelected(offerings.current.availablePackages[0]?.identifier ?? null);
-        }
-      } catch (e) {
-        Alert.alert('Error', 'Could not load subscription options.');
-      } finally {
-        setLoading(false);
-      }
-    }
-    loadOfferings();
-  }, []);
+  const [selected, setSelected] = useState<string>("fivepack");
+  const [loading, setLoading] = useState(false);
 
   async function handlePurchase() {
-    const pkg = packages.find(p => p.identifier === selected);
-    if (!pkg) return;
-    setPurchasing(true);
+    setLoading(true);
     try {
-      await Purchases.purchasePackage(pkg);
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      if (!session) {
+        Alert.alert("Not logged in");
+        return;
+      }
+
+      const res = await fetch(`${SUPABASE_URL}/functions/v1/create-checkout`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+          apikey: SUPABASE_ANON_KEY,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ pack: selected }),
+      });
+
+      const { url, error } = await res.json();
+      if (error) throw new Error(error);
+
+      // Open Stripe checkout in browser
+      await Linking.openURL(url);
+      // When they come back via deep link (mvb://purchase-success), navigate away
       navigation.goBack();
     } catch (e: any) {
-      if (!e.userCancelled) {
-        Alert.alert('Purchase failed', e.message);
-      }
+      Alert.alert("Error", e.message);
     } finally {
-      setPurchasing(false);
-    }
-  }
-
-  async function handleRestore() {
-    setPurchasing(true);
-    try {
-      const info = await Purchases.restorePurchases();
-      if (info.entitlements.active['pro']) {
-        Alert.alert('Restored!', 'Your pro subscription has been restored.');
-        navigation.goBack();
-      } else {
-        Alert.alert('No subscription found', 'No active subscription was found for this account.');
-      }
-    } catch (e: any) {
-      Alert.alert('Error', e.message);
-    } finally {
-      setPurchasing(false);
+      setLoading(false);
     }
   }
 
   return (
     <View style={styles.container}>
-      <TouchableOpacity style={styles.closeButton} onPress={() => navigation.goBack()}>
+      <TouchableOpacity
+        style={styles.closeButton}
+        onPress={() => navigation.goBack()}
+      >
         <Text style={styles.closeText}>✕</Text>
       </TouchableOpacity>
 
-      <Text style={styles.title}>MVB Pro</Text>
-      <Text style={styles.subtitle}>Unlimited beer menu scans</Text>
+      <Text style={styles.title}>Get More Scans</Text>
+      <Text style={styles.subtitle}>One-time purchase, never expires</Text>
 
-      <View style={styles.features}>
-        <Text style={styles.feature}>🍺  Unlimited scans per month</Text>
-        <Text style={styles.feature}>📜  Full scan history</Text>
-        <Text style={styles.feature}>🏆  Best value rankings</Text>
+      <View style={styles.packs}>
+        {PACKS.map((pack) => (
+          <TouchableOpacity
+            key={pack.id}
+            style={[styles.pack, selected === pack.id && styles.packSelected]}
+            onPress={() => setSelected(pack.id)}
+          >
+            <Text
+              style={[
+                styles.packLabel,
+                selected === pack.id && styles.packLabelSelected,
+              ]}
+            >
+              {pack.label}
+            </Text>
+            <Text
+              style={[
+                styles.packPrice,
+                selected === pack.id && styles.packPriceSelected,
+              ]}
+            >
+              {pack.price}
+            </Text>
+            <Text style={styles.packDescription}>{pack.description}</Text>
+          </TouchableOpacity>
+        ))}
       </View>
 
-      {loading ? (
-        <ActivityIndicator color="#f5c518" size="large" style={{ marginTop: 40 }} />
-      ) : (
-        <View style={styles.packages}>
-          {packages.map(pkg => (
-            <TouchableOpacity
-              key={pkg.identifier}
-              style={[styles.package, selected === pkg.identifier && styles.packageSelected]}
-              onPress={() => setSelected(pkg.identifier)}
-            >
-              <Text style={[styles.packageTitle, selected === pkg.identifier && styles.packageTitleSelected]}>
-                {pkg.packageType === 'ANNUAL' ? 'Annual' : 'Monthly'}
-              </Text>
-              <Text style={[styles.packagePrice, selected === pkg.identifier && styles.packagePriceSelected]}>
-                {pkg.product.priceString}
-                {pkg.packageType === 'ANNUAL' ? '/year' : '/month'}
-              </Text>
-              {pkg.packageType === 'ANNUAL' && (
-                <Text style={styles.saveBadge}>Save 58%</Text>
-              )}
-            </TouchableOpacity>
-          ))}
-        </View>
-      )}
-
       <TouchableOpacity
-        style={[styles.subscribeButton, purchasing && styles.subscribeButtonDisabled]}
+        style={[styles.buyButton, loading && styles.buyButtonDisabled]}
         onPress={handlePurchase}
-        disabled={purchasing || loading}
+        disabled={loading}
       >
-        {purchasing
-          ? <ActivityIndicator color="#0f0f0f" />
-          : <Text style={styles.subscribeText}>Subscribe</Text>
-        }
-      </TouchableOpacity>
-
-      <TouchableOpacity onPress={handleRestore} disabled={purchasing}>
-        <Text style={styles.restoreText}>Restore purchases</Text>
+        {loading ? (
+          <ActivityIndicator color="#0f0f0f" />
+        ) : (
+          <Text style={styles.buyText}>Buy Scans</Text>
+        )}
       </TouchableOpacity>
 
       <Text style={styles.legal}>
-        Subscriptions auto-renew unless cancelled. Cancel anytime in your device settings.
+        Secure payment via Stripe. Credits never expire.
       </Text>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#0f0f0f', padding: 24, paddingTop: 60 },
-  closeButton: { position: 'absolute', top: 60, right: 24 },
-  closeText: { color: '#555', fontSize: 20 },
-  title: { fontSize: 32, fontWeight: 'bold', color: '#f5c518', textAlign: 'center', marginTop: 40 },
-  subtitle: { fontSize: 16, color: '#888', textAlign: 'center', marginTop: 8, marginBottom: 40 },
-  features: { gap: 16, marginBottom: 40 },
-  feature: { color: '#fff', fontSize: 16 },
-  packages: { flexDirection: 'row', gap: 12, marginBottom: 24 },
-  package: { flex: 1, backgroundColor: '#1e1e1e', borderRadius: 12, padding: 16, alignItems: 'center', borderWidth: 1, borderColor: '#1e1e1e' },
-  packageSelected: { borderColor: '#f5c518', backgroundColor: '#2a2200' },
-  packageTitle: { color: '#888', fontSize: 14, fontWeight: 'bold', marginBottom: 4 },
-  packageTitleSelected: { color: '#f5c518' },
-  packagePrice: { color: '#fff', fontSize: 20, fontWeight: 'bold' },
-  packagePriceSelected: { color: '#f5c518' },
-  saveBadge: { marginTop: 6, backgroundColor: '#f5c518', color: '#0f0f0f', fontSize: 11, fontWeight: 'bold', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 4 },
-  subscribeButton: { backgroundColor: '#f5c518', borderRadius: 8, padding: 16, alignItems: 'center', marginBottom: 16 },
-  subscribeButtonDisabled: { opacity: 0.5 },
-  subscribeText: { color: '#0f0f0f', fontWeight: 'bold', fontSize: 16 },
-  restoreText: { color: '#555', textAlign: 'center', fontSize: 14, marginBottom: 24 },
-  legal: { color: '#333', fontSize: 11, textAlign: 'center', lineHeight: 16 },
+  container: {
+    flex: 1,
+    backgroundColor: "#0f0f0f",
+    padding: 24,
+    paddingTop: 60,
+  },
+  closeButton: { alignSelf: "flex-end", padding: 8 },
+  closeText: { color: "#888", fontSize: 18 },
+  title: { fontSize: 28, fontWeight: "bold", color: "#fff", marginTop: 16 },
+  subtitle: { color: "#888", fontSize: 14, marginTop: 8, marginBottom: 32 },
+  packs: { gap: 16, marginBottom: 32 },
+  pack: {
+    backgroundColor: "#1e1e1e",
+    borderRadius: 12,
+    padding: 20,
+    borderWidth: 2,
+    borderColor: "transparent",
+  },
+  packSelected: { borderColor: "#f5c518" },
+  packLabel: { color: "#fff", fontSize: 20, fontWeight: "bold" },
+  packLabelSelected: { color: "#f5c518" },
+  packPrice: { color: "#888", fontSize: 18, marginTop: 4 },
+  packPriceSelected: { color: "#fff" },
+  packDescription: { color: "#555", fontSize: 13, marginTop: 6 },
+  buyButton: {
+    backgroundColor: "#f5c518",
+    borderRadius: 8,
+    padding: 16,
+    alignItems: "center",
+  },
+  buyButtonDisabled: { opacity: 0.6 },
+  buyText: { color: "#0f0f0f", fontWeight: "bold", fontSize: 16 },
+  legal: { color: "#555", fontSize: 12, textAlign: "center", marginTop: 16 },
 });

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState } from "react";
 import {
   View,
   Text,
@@ -10,80 +10,63 @@ import {
   Platform,
   ScrollView,
   Alert,
-} from 'react-native';
-import * as ImagePicker from 'expo-image-picker';
-import * as ImageManipulator from 'expo-image-manipulator';
-import { supabase } from '../lib/supabase';
-import { useProStatus } from '../lib/useProStatus'
+} from "react-native";
+import * as ImagePicker from "expo-image-picker";
+import * as ImageManipulator from "expo-image-manipulator";
+import { supabase } from "../lib/supabase";
+import { useScanCredits } from "../lib/useScanCredits";
 
 const SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL!;
 const SUPABASE_ANON_KEY = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY!;
 
-const FREE_SCAN_LIMIT = 10;
-
-type Stage = 'input' | 'preview' | 'loading' | 'error';
+type Stage = "input" | "preview" | "loading" | "error";
 
 export default function ScanScreen({ navigation }: any) {
   const [image, setImage] = useState<string | null>(null);
   const [imageBase64, setImageBase64] = useState<string | null>(null);
-  const [imageMimeType, setImageMimeType] = useState<string>('image/jpeg');
-  const [stage, setStage] = useState<Stage>('input');
-  const [errorMessage, setErrorMessage] = useState('');
-  const { isPro } = useProStatus();
+  const [imageMimeType, setImageMimeType] = useState<string>("image/jpeg");
+  const [stage, setStage] = useState<Stage>("input");
+  const [errorMessage, setErrorMessage] = useState("");
+  const { credits, refresh: refreshCredits } = useScanCredits();
 
-  async function convertToJpeg(uri: string): Promise<{ uri: string; base64: string }> {
+  async function convertToJpeg(
+    uri: string,
+  ): Promise<{ uri: string; base64: string }> {
     const result = await ImageManipulator.manipulateAsync(
       uri,
       [{ resize: { width: 1600 } }],
-      { compress: 0.8, format: ImageManipulator.SaveFormat.JPEG, base64: true }
+      { compress: 0.8, format: ImageManipulator.SaveFormat.JPEG, base64: true },
     );
     return { uri: result.uri, base64: result.base64! };
   }
 
   async function checkScanLimit(): Promise<boolean> {
-    if (isPro) return true;
-
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session) return false;
-
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('scan_count, scan_count_reset_date')
-      .eq('id', session.user.id)
-      .single();
-
-    if (!profile) return true;
-
-    // Reset count if it's a new month
-    const resetDate = new Date(profile.scan_count_reset_date);
-    const now = new Date();
-    if (now.getMonth() !== resetDate.getMonth() || now.getFullYear() !== resetDate.getFullYear()) {
-      await supabase
-        .from('profiles')
-        .update({ scan_count: 0, scan_count_reset_date: now.toISOString().split('T')[0] })
-        .eq('id', session.user.id);
-      return true;
-    }
-
-    if (profile.scan_count >= FREE_SCAN_LIMIT) {
-      navigation.navigate('Paywall');
+    if (credits === null || credits <= 0) {
+      navigation.navigate("Paywall");
       return false;
     }
-
     return true;
   }
 
-  async function incrementScanCount() {
-    if (isPro) return;
-    const { data: { session } } = await supabase.auth.getSession();
+  async function decrementCredit() {
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
     if (!session) return;
-    await supabase.rpc('increment_scan_count', { user_id: session.user.id });
+    await supabase.rpc("add_scan_credits", {
+      p_user_id: session.user.id,
+      p_credits: -1,
+    });
+    refreshCredits();
   }
 
   async function openCamera() {
     const { status } = await ImagePicker.requestCameraPermissionsAsync();
-    if (status !== 'granted') {
-      Alert.alert('Permission needed', 'Camera access is required to scan menus.');
+    if (status !== "granted") {
+      Alert.alert(
+        "Permission needed",
+        "Camera access is required to scan menus.",
+      );
       return;
     }
     const result = await ImagePicker.launchCameraAsync({
@@ -97,15 +80,15 @@ export default function ScanScreen({ navigation }: any) {
       const { uri, base64 } = await convertToJpeg(result.assets[0].uri);
       setImage(uri);
       setImageBase64(base64);
-      setImageMimeType('image/jpeg');
-      setStage('preview');
+      setImageMimeType("image/jpeg");
+      setStage("preview");
     }
   }
 
   async function openLibrary() {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (status !== 'granted') {
-      Alert.alert('Permission needed', 'Photo library access is required.');
+    if (status !== "granted") {
+      Alert.alert("Permission needed", "Photo library access is required.");
       return;
     }
     const result = await ImagePicker.launchImageLibraryAsync({
@@ -118,8 +101,8 @@ export default function ScanScreen({ navigation }: any) {
       const { uri, base64 } = await convertToJpeg(result.assets[0].uri);
       setImage(uri);
       setImageBase64(base64);
-      setImageMimeType('image/jpeg');
-      setStage('preview');
+      setImageMimeType("image/jpeg");
+      setStage("preview");
     }
   }
 
@@ -129,22 +112,24 @@ export default function ScanScreen({ navigation }: any) {
     const canScan = await checkScanLimit();
     if (!canScan) return;
 
-    setStage('loading');
+    setStage("loading");
 
     try {
-      const { data: { session } } = await supabase.auth.getSession();
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
       if (!session) {
-        Alert.alert('Not logged in');
-        setStage('preview');
+        Alert.alert("Not logged in");
+        setStage("preview");
         return;
       }
 
       const res = await fetch(`${SUPABASE_URL}/functions/v1/scan-menu`, {
-        method: 'POST',
+        method: "POST",
         headers: {
           Authorization: `Bearer ${session.access_token}`,
           apikey: SUPABASE_ANON_KEY,
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
         },
         body: JSON.stringify({
           image_base64: imageBase64,
@@ -155,32 +140,32 @@ export default function ScanScreen({ navigation }: any) {
       const data = await res.json();
 
       if (!res.ok) {
-        setErrorMessage(data.error || 'Something went wrong.');
-        setStage('error');
+        setErrorMessage(data.error || "Something went wrong.");
+        setStage("error");
         return;
       }
 
-      await incrementScanCount();
+      await decrementCredit();
 
       setImage(null);
       setImageBase64(null);
-      setStage('input');
+      setStage("input");
 
-      navigation.navigate('Results', { data });
+      navigation.navigate("Results", { data });
     } catch (e: any) {
       setErrorMessage(e.message);
-      setStage('error');
+      setStage("error");
     }
   }
 
   function reset() {
     setImage(null);
     setImageBase64(null);
-    setStage('input');
-    setErrorMessage('');
+    setStage("input");
+    setErrorMessage("");
   }
 
-  if (stage === 'loading') {
+  if (stage === "loading") {
     return (
       <View style={styles.centered}>
         <ActivityIndicator size="large" color="#f5c518" />
@@ -189,7 +174,7 @@ export default function ScanScreen({ navigation }: any) {
     );
   }
 
-  if (stage === 'error') {
+  if (stage === "error") {
     return (
       <View style={styles.centered}>
         <Text style={styles.errorIcon}>⚠️</Text>
@@ -205,16 +190,24 @@ export default function ScanScreen({ navigation }: any) {
   return (
     <KeyboardAvoidingView
       style={{ flex: 1 }}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      behavior={Platform.OS === "ios" ? "padding" : undefined}
     >
-      <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
+      <ScrollView
+        contentContainerStyle={styles.container}
+        keyboardShouldPersistTaps="handled"
+      >
         <Text style={styles.title}>Scan a Menu</Text>
         <Text style={styles.subtitle}>Take a photo of any beer menu</Text>
 
-        {!isPro && (
-          <TouchableOpacity onPress={() => navigation.navigate('Paywall')}>
-            <Text style={styles.proPrompt}>✨ Upgrade to Pro for unlimited scans</Text>
+        {credits !== null && credits <= 0 && (
+          <TouchableOpacity onPress={() => navigation.navigate("Paywall")}>
+            <Text style={styles.proPrompt}>Out of scans — tap to buy more</Text>
           </TouchableOpacity>
+        )}
+        {credits !== null && credits > 0 && (
+          <Text style={styles.creditsText}>
+            {credits} scan{credits !== 1 ? "s" : ""} remaining
+          </Text>
         )}
 
         {image ? (
@@ -227,21 +220,32 @@ export default function ScanScreen({ navigation }: any) {
         ) : (
           <View style={styles.imageButtons}>
             <TouchableOpacity style={styles.button} onPress={openCamera}>
-              <Text style={styles.buttonText}>📷  Take Photo</Text>
+              <Text style={styles.buttonText}>📷 Take Photo</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={[styles.button, styles.secondaryButton]} onPress={openLibrary}>
-              <Text style={[styles.buttonText, styles.secondaryButtonText]}>🖼️  Choose from Library</Text>
+            <TouchableOpacity
+              style={[styles.button, styles.secondaryButton]}
+              onPress={openLibrary}
+            >
+              <Text style={[styles.buttonText, styles.secondaryButtonText]}>
+                🖼️ Choose from Library
+              </Text>
             </TouchableOpacity>
           </View>
         )}
 
-        {stage === 'preview' && (
-          <TouchableOpacity style={[styles.button, styles.submitButton]} onPress={submitScan}>
+        {stage === "preview" && (
+          <TouchableOpacity
+            style={[styles.button, styles.submitButton]}
+            onPress={submitScan}
+          >
             <Text style={styles.buttonText}>Analyze Menu →</Text>
           </TouchableOpacity>
         )}
 
-        <TouchableOpacity style={styles.backButton} onPress={() => navigation.navigate('Tabs')}>
+        <TouchableOpacity
+          style={styles.backButton}
+          onPress={() => navigation.navigate("Tabs")}
+        >
           <Text style={styles.backButtonText}>← Home</Text>
         </TouchableOpacity>
       </ScrollView>
@@ -250,25 +254,63 @@ export default function ScanScreen({ navigation }: any) {
 }
 
 const styles = StyleSheet.create({
-  container: { flexGrow: 1, backgroundColor: '#0f0f0f', padding: 24, paddingTop: 60 },
-  centered: { flex: 1, backgroundColor: '#0f0f0f', justifyContent: 'center', alignItems: 'center', padding: 24, gap: 12 },
-  title: { fontSize: 28, fontWeight: 'bold', color: '#fff', marginBottom: 8 },
-  subtitle: { fontSize: 14, color: '#888', marginBottom: 16 },
-  proPrompt: { color: '#f5c518', fontSize: 13, marginBottom: 24, textAlign: 'center' },
+  container: {
+    flexGrow: 1,
+    backgroundColor: "#0f0f0f",
+    padding: 24,
+    paddingTop: 60,
+  },
+  centered: {
+    flex: 1,
+    backgroundColor: "#0f0f0f",
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 24,
+    gap: 12,
+  },
+  title: { fontSize: 28, fontWeight: "bold", color: "#fff", marginBottom: 8 },
+  subtitle: { fontSize: 14, color: "#888", marginBottom: 16 },
+  proPrompt: {
+    color: "#f5c518",
+    fontSize: 13,
+    marginBottom: 24,
+    textAlign: "center",
+  },
   imageButtons: { gap: 12, marginBottom: 24 },
-  button: { backgroundColor: '#f5c518', borderRadius: 8, padding: 16, alignItems: 'center' },
-  buttonText: { color: '#0f0f0f', fontWeight: 'bold', fontSize: 16 },
-  secondaryButton: { backgroundColor: '#1e1e1e' },
-  secondaryButtonText: { color: '#fff' },
+  button: {
+    backgroundColor: "#f5c518",
+    borderRadius: 8,
+    padding: 16,
+    alignItems: "center",
+  },
+  buttonText: { color: "#0f0f0f", fontWeight: "bold", fontSize: 16 },
+  secondaryButton: { backgroundColor: "#1e1e1e" },
+  secondaryButtonText: { color: "#fff" },
   submitButton: { marginTop: 8, marginBottom: 16 },
   previewContainer: { marginBottom: 24 },
-  preview: { width: '100%', height: 220, borderRadius: 12, marginBottom: 8 },
-  changePhoto: { alignItems: 'center', padding: 8 },
-  changePhotoText: { color: '#888', fontSize: 14 },
-  loadingTitle: { color: '#fff', fontSize: 20, fontWeight: 'bold', marginTop: 16 },
+  preview: { width: "100%", height: 220, borderRadius: 12, marginBottom: 8 },
+  changePhoto: { alignItems: "center", padding: 8 },
+  changePhotoText: { color: "#888", fontSize: 14 },
+  loadingTitle: {
+    color: "#fff",
+    fontSize: 20,
+    fontWeight: "bold",
+    marginTop: 16,
+  },
+  creditsText: {
+    color: "#888",
+    fontSize: 13,
+    marginBottom: 16,
+    textAlign: "center",
+  },
   errorIcon: { fontSize: 48 },
-  errorTitle: { color: '#fff', fontSize: 20, fontWeight: 'bold' },
-  errorMessage: { color: '#888', fontSize: 14, textAlign: 'center', marginBottom: 16 },
-  backButton: { marginTop: 16, alignItems: 'center' },
-  backButtonText: { color: '#555', fontSize: 14 },
+  errorTitle: { color: "#fff", fontSize: 20, fontWeight: "bold" },
+  errorMessage: {
+    color: "#888",
+    fontSize: 14,
+    textAlign: "center",
+    marginBottom: 16,
+  },
+  backButton: { marginTop: 16, alignItems: "center" },
+  backButtonText: { color: "#555", fontSize: 14 },
 });
