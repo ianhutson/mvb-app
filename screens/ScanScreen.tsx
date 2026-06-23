@@ -14,7 +14,6 @@ import {
 import * as ImagePicker from "expo-image-picker";
 import * as ImageManipulator from "expo-image-manipulator";
 import { supabase } from "../lib/supabase";
-import { useScanCredits } from "../lib/useScanCredits";
 
 const SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL!;
 const SUPABASE_ANON_KEY = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY!;
@@ -27,7 +26,6 @@ export default function ScanScreen({ navigation }: any) {
   const [imageMimeType, setImageMimeType] = useState<string>("image/jpeg");
   const [stage, setStage] = useState<Stage>("input");
   const [errorMessage, setErrorMessage] = useState("");
-  const { credits, refresh: refreshCredits } = useScanCredits();
 
   async function convertToJpeg(
     uri: string,
@@ -38,26 +36,6 @@ export default function ScanScreen({ navigation }: any) {
       { compress: 0.8, format: ImageManipulator.SaveFormat.JPEG, base64: true },
     );
     return { uri: result.uri, base64: result.base64! };
-  }
-
-  async function checkScanLimit(): Promise<boolean> {
-    if (credits === null || credits <= 0) {
-      navigation.navigate("Paywall");
-      return false;
-    }
-    return true;
-  }
-
-  async function decrementCredit() {
-    const {
-      data: { session },
-    } = await supabase.auth.getSession();
-    if (!session) return;
-    await supabase.rpc("add_scan_credits", {
-      p_user_id: session.user.id,
-      p_credits: -1,
-    });
-    refreshCredits();
   }
 
   async function openCamera() {
@@ -109,9 +87,6 @@ export default function ScanScreen({ navigation }: any) {
   async function submitScan() {
     if (!imageBase64) return;
 
-    const canScan = await checkScanLimit();
-    if (!canScan) return;
-
     setStage("loading");
 
     try {
@@ -144,8 +119,6 @@ export default function ScanScreen({ navigation }: any) {
         setStage("error");
         return;
       }
-
-      await decrementCredit();
 
       setImage(null);
       setImageBase64(null);
@@ -198,17 +171,6 @@ export default function ScanScreen({ navigation }: any) {
       >
         <Text style={styles.title}>Scan a Menu</Text>
         <Text style={styles.subtitle}>Take a photo of any beer menu</Text>
-
-        {credits !== null && credits <= 0 && (
-          <TouchableOpacity onPress={() => navigation.navigate("Paywall")}>
-            <Text style={styles.proPrompt}>Out of scans — tap to buy more</Text>
-          </TouchableOpacity>
-        )}
-        {credits !== null && credits > 0 && (
-          <Text style={styles.creditsText}>
-            {credits} scan{credits !== 1 ? "s" : ""} remaining
-          </Text>
-        )}
 
         {image ? (
           <View style={styles.previewContainer}>
@@ -270,12 +232,6 @@ const styles = StyleSheet.create({
   },
   title: { fontSize: 28, fontWeight: "bold", color: "#fff", marginBottom: 8 },
   subtitle: { fontSize: 14, color: "#888", marginBottom: 16 },
-  proPrompt: {
-    color: "#f5c518",
-    fontSize: 13,
-    marginBottom: 24,
-    textAlign: "center",
-  },
   imageButtons: { gap: 12, marginBottom: 24 },
   button: {
     backgroundColor: "#f5c518",
@@ -296,12 +252,6 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: "bold",
     marginTop: 16,
-  },
-  creditsText: {
-    color: "#888",
-    fontSize: 13,
-    marginBottom: 16,
-    textAlign: "center",
   },
   errorIcon: { fontSize: 48 },
   errorTitle: { color: "#fff", fontSize: 20, fontWeight: "bold" },

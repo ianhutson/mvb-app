@@ -8,14 +8,12 @@ import {
   ActivityIndicator,
 } from "react-native";
 import { supabase } from "../lib/supabase";
-import { useScanCredits } from "../lib/useScanCredits";
 
 export default function ProfileScreen({ navigation }: any) {
   const [email, setEmail] = useState("");
   const [volumeUnit, setVolumeUnit] = useState<"ml" | "floz">("floz");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const { credits, refresh } = useScanCredits();
 
   useEffect(() => {
     async function load() {
@@ -113,26 +111,7 @@ export default function ProfileScreen({ navigation }: any) {
           <Text style={styles.rowLabel}>Email</Text>
           <Text style={styles.rowValue}>{email}</Text>
         </View>
-        <View style={styles.row}>
-          <Text style={styles.rowLabel}>Scans remaining</Text>
-          <Text
-            style={[styles.rowValue, (credits ?? 0) > 0 && styles.creditsText]}
-          >
-            {credits ?? "—"}
-          </Text>
-        </View>
       </View>
-
-      {(credits ?? 0) === 0 && (
-        <View style={styles.section}>
-          <TouchableOpacity
-            style={styles.buyButton}
-            onPress={() => navigation.navigate("Paywall")}
-          >
-            <Text style={styles.buyButtonText}>🍺 Buy More Scans</Text>
-          </TouchableOpacity>
-        </View>
-      )}
 
       <View style={styles.section}>
         <Text style={styles.sectionLabel}>Display Preference</Text>
@@ -231,14 +210,6 @@ const styles = StyleSheet.create({
   },
   rowLabel: { color: "#888", fontSize: 15 },
   rowValue: { color: "#fff", fontSize: 15 },
-  creditsText: { color: "#f5c518", fontWeight: "bold" },
-  buyButton: {
-    backgroundColor: "#f5c518",
-    borderRadius: 8,
-    padding: 16,
-    alignItems: "center",
-  },
-  buyButtonText: { color: "#0f0f0f", fontWeight: "bold", fontSize: 16 },
   unitSelector: {
     flexDirection: "row",
     backgroundColor: "#1e1e1e",
