@@ -2,7 +2,7 @@
   "expo": {
     "name": "MVB",
     "slug": "mvb-app",
-    "version": "1.1.5",
+    "version": "1.1.6",
     "scheme": "com.ianhutson.mvb",
     "orientation": "portrait",
     "icon": "./assets/icon-new.png",
@@ -33,13 +33,18 @@
     },
     "android": {
       "package": "com.ianhutson.mvb",
-      "versionCode": 4,
+      "versionCode": 5,
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#0f0f0f"
       },
       "edgeToEdgeEnabled": true,
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "blockedPermissions": [
+        "android.permission.READ_MEDIA_IMAGES",
+        "android.permission.READ_MEDIA_VIDEO",
+        "android.permission.WRITE_EXTERNAL_STORAGE"
+      ]
     },
     "web": {
       "favicon": "./assets/favicon-new.png"
